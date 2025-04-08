@@ -25,9 +25,9 @@ class BaselineInput(JobInput):
 def predict_with_trained_model(data: JobInput):
     try:
         job_list = data.jobs
-        env.reset(jobs=job_list)  # Set the environment with the given jobs
+        # env.reset(jobs=job_list)  # Set the environment with the given jobs
 
-        obs, _ = env.reset()
+        obs, _ = env.reset(jobs=job_list) 
         done = False
         rewards = []
 

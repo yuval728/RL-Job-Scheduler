@@ -1,9 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
 import random
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 st.set_page_config(page_title="Job Scheduling", layout="wide")
