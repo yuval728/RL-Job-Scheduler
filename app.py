@@ -46,32 +46,38 @@ if st.button("🚀 Predict with RL & Baselines"):
     # RL AGENT PREDICTION INTERPRETATION
     # ===============================
     if rl_result:
-        st.subheader("🧠 RL Agent Prediction")
+        st.subheader("🧠 RL Agent Schedule")
 
-        action_vector = np.array(rl_result["action"])
-        job_features = np.array(jobs)
+        job_data = []
+        waiting_times = []
+        turnaround_times = []
 
-        
-        similarities = cosine_similarity([action_vector], job_features)[0]
-        chosen_index = int(np.argmax(similarities))
-        chosen_job = jobs[chosen_index]
+        for job_entry in rl_result["completed_jobs"]:
+            features = job_entry["job"]
+            start_time = job_entry["start_time"]
+            end_time = job_entry["end_time"]
 
-        st.markdown(f"**🎯 Selected Job Index:** `{chosen_index}` (most similar to action vector)")
-        st.markdown("**📋 Selected Job Features:**")
-        st.json({
-            "Arrival Time": chosen_job[0],
-            "Execution Time": chosen_job[1],
-            "Priority": chosen_job[2],
-            "Deadline": chosen_job[3],
-            "CPU Requirement": chosen_job[4],
-            "Job Type": int(chosen_job[5])
-        })
 
-        col_rl1, col_rl2 = st.columns(2)
-        action_str = ", ".join([f"{x:.2f}" for x in rl_result["action"]])
-        col_rl1.metric("Predicted Action Vector", action_str)
-        col_rl2.metric("Reward Received", f"{rl_result['reward']:.3f}")
+            exec_time = features[1]
+            waiting_time = start_time - features[0]
+            turnaround_time = end_time - features[0]
 
+            job_data.append(features + [start_time, waiting_time, turnaround_time])
+            waiting_times.append(waiting_time)
+            turnaround_times.append(turnaround_time)
+
+        columns = ["Arrival", "Execution", "Priority", "Deadline", "CPU", "Type", "Start Time", "Waiting Time", "Turnaround Time"]
+        df = pd.DataFrame(job_data, columns=columns)
+
+        st.dataframe(
+            df.style.highlight_max(axis=0, subset=["Waiting Time", "Turnaround Time"], color="lightblue"),
+            use_container_width=True
+        )
+
+        col1, col2 = st.columns(2)
+        col1.metric("📉 Avg Waiting Time", f"{rl_result['avg_waiting_time']:.3f}")
+        col2.metric("⏱️ Avg Turnaround Time", f"{rl_result['avg_turnaround_time']:.3f}")
+        st.metric("💰 Total Reward", f"{rl_result['total_reward']:.3f}")
         st.divider()
 
     # ===============================

@@ -82,6 +82,7 @@ class JobSchedulingEnv(gym.Env):
         info = {
             "start_time": start_time,
             "end_time": end_time,
+            "completed_job": list(selected_job)  # Include job info here
         }
 
         return self._get_observation(), reward, done, False, info
