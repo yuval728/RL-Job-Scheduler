@@ -3,29 +3,66 @@ import requests
 import pandas as pd
 import random
 
-
 st.set_page_config(page_title="Job Scheduling", layout="wide")
 st.title("🧠📅 AI-Powered Job Scheduling")
 
 num_jobs = 5
 st.subheader("Enter Job Features")
-st.caption("Each job: (arrival_time, execution_time, priority, deadline, cpu_req, job_type)")
+st.caption("Each job: (id, arrival_time, execution_time, priority, deadline, cpu_req, job_type)")
 
-jobs = []
-for i in range(num_jobs):
-    with st.expander(f"Job {i + 1}", expanded=True):
-        arrival = st.slider(f"Arrival Time {i+1}", 0.0, 1.0, random.uniform(0.0, 1.0), key=f"arrival_{i}")
-        exec_time = st.slider(f"Execution Time {i+1}", 0.1, 1.0, random.uniform(0.1, 1.0), key=f"exec_{i}")
-        priority = st.slider(f"Priority {i+1}", 0.2, 1.0, random.uniform(0.2, 1.0), key=f"priority_{i}")
-        deadline = st.slider(f"Deadline {i+1}", 0.2, 1.0, random.uniform(0.2, 1.0), key=f"deadline_{i}")
-        cpu = st.slider(f"CPU Requirement {i+1}", 0.1, 1.0, random.uniform(0.1, 1.0), key=f"cpu_{i}")
-        job_type = st.selectbox(f"Job Type {i+1}", [0, 1], index=random.randint(0, 1), key=f"type_{i}")
-        jobs.append([arrival, exec_time, priority, deadline, cpu, float(job_type)])
+# Initialize session state for jobs
+if "jobs" not in st.session_state:
+    st.session_state.jobs = [
+        {
+            "id": i + 1,
+            "arrival_time": random.uniform(0.0, 1.0),
+            "execution_time": random.uniform(0.1, 1.0),
+            "priority": random.uniform(0.2, 1.0),
+            "deadline": random.uniform(0.2, 1.0),
+            "cpu_req": random.uniform(0.1, 1.0),
+            "job_type": random.randint(0, 1),
+        }
+        for i in range(num_jobs)
+    ]
+
+# Display job inputs
+for i, job in enumerate(st.session_state.jobs):
+    with st.expander(f"Job {job['id']}", expanded=True):
+        job["arrival_time"] = st.slider(
+            f"Arrival Time {job['id']}", 0.0, 1.0, job["arrival_time"], key=f"arrival_{i}"
+        )
+        job["execution_time"] = st.slider(
+            f"Execution Time {job['id']}", 0.1, 1.0, job["execution_time"], key=f"exec_{i}"
+        )
+        job["priority"] = st.slider(
+            f"Priority {job['id']}", 0.2, 1.0, job["priority"], key=f"priority_{i}"
+        )
+        job["deadline"] = st.slider(
+            f"Deadline {job['id']}", 0.2, 1.0, job["deadline"], key=f"deadline_{i}"
+        )
+        job["cpu_req"] = st.slider(
+            f"CPU Requirement {job['id']}", 0.1, 1.0, job["cpu_req"], key=f"cpu_{i}"
+        )
+        job["job_type"] = st.selectbox(
+            f"Job Type {job['id']}", [0, 1], index=job["job_type"], key=f"type_{i}"
+        )
 
 st.divider()
 
 if st.button("🚀 Predict with RL & Baselines"):
     with st.spinner("Getting predictions..."):
+        # Prepare jobs data for API
+        jobs = [
+            [
+                job["arrival_time"],
+                job["execution_time"],
+                job["priority"],
+                job["deadline"],
+                job["cpu_req"],
+                float(job["job_type"]),
+            ]
+            for job in st.session_state.jobs
+        ]
 
         # --- RL Prediction ---
         rl_response = requests.post("http://localhost:8000/predict/", json={"jobs": jobs})
@@ -43,6 +80,7 @@ if st.button("🚀 Predict with RL & Baselines"):
     # ===============================
     # RL AGENT PREDICTION INTERPRETATION
     # ===============================
+   
     if rl_result:
         st.subheader("🧠 RL Agent Schedule")
 
@@ -55,16 +93,28 @@ if st.button("🚀 Predict with RL & Baselines"):
             start_time = job_entry["start_time"]
             end_time = job_entry["end_time"]
 
+            # Find the corresponding job id based on features
+            matching_job = next(
+                (job for job in st.session_state.jobs if
+                job["arrival_time"] == features[0] and
+                job["execution_time"] == features[1] and
+                job["priority"] == features[2] and
+                job["deadline"] == features[3] and
+                job["cpu_req"] == features[4] and
+                float(job["job_type"]) == features[5]),
+                None
+            )
+            job_id = matching_job["id"] if matching_job else "Unknown"
 
             exec_time = features[1]
             waiting_time = start_time - features[0]
             turnaround_time = end_time - features[0]
 
-            job_data.append(features + [start_time, waiting_time, turnaround_time])
+            job_data.append([job_id] + features + [start_time, waiting_time, turnaround_time])
             waiting_times.append(waiting_time)
             turnaround_times.append(turnaround_time)
 
-        columns = ["Arrival", "Execution", "Priority", "Deadline", "CPU", "Type", "Start Time", "Waiting Time", "Turnaround Time"]
+        columns = ["ID", "Arrival", "Execution", "Priority", "Deadline", "CPU", "Type", "Start Time", "Waiting Time", "Turnaround Time"]
         df = pd.DataFrame(job_data, columns=columns)
 
         st.dataframe(
@@ -77,6 +127,7 @@ if st.button("🚀 Predict with RL & Baselines"):
         col2.metric("⏱️ Avg Turnaround Time", f"{rl_result['avg_turnaround_time']:.3f}")
         st.metric("💰 Total Reward", f"{rl_result['total_reward']:.3f}")
         st.divider()
+
 
     # ===============================
     # BASELINE RESULTS
@@ -92,15 +143,29 @@ if st.button("🚀 Predict with RL & Baselines"):
 
         for job in result["completed_jobs"]:
             features, start_time, end_time = job
+
+            # Find the corresponding job id based on features
+            matching_job = next(
+                (job for job in st.session_state.jobs if
+                job["arrival_time"] == features[0] and
+                job["execution_time"] == features[1] and
+                job["priority"] == features[2] and
+                job["deadline"] == features[3] and
+                job["cpu_req"] == features[4] and
+                float(job["job_type"]) == features[5]),
+                None
+            )
+            job_id = matching_job["id"] if matching_job else "Unknown"
+
             exec_time = features[1]
             waiting_time = start_time - features[0]
             turnaround_time = end_time - features[0]
 
-            job_data.append(features + [start_time, waiting_time, turnaround_time])
+            job_data.append([job_id] + features + [start_time, waiting_time, turnaround_time])
             waiting_times.append(waiting_time)
             turnaround_times.append(turnaround_time)
 
-        columns = ["Arrival", "Execution", "Priority", "Deadline", "CPU", "Type", "Start Time", "Waiting Time", "Turnaround Time"]
+        columns = ["ID", "Arrival", "Execution", "Priority", "Deadline", "CPU", "Type", "Start Time", "Waiting Time", "Turnaround Time"]
         df = pd.DataFrame(job_data, columns=columns)
 
         st.dataframe(
@@ -112,3 +177,4 @@ if st.button("🚀 Predict with RL & Baselines"):
         col1.metric("📉 Avg Waiting Time", f"{result['avg_waiting_time']:.3f}")
         col2.metric("⏱️ Avg Turnaround Time", f"{result['avg_turnaround_time']:.3f}")
         st.divider()
+
